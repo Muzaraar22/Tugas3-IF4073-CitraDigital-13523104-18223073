@@ -12,6 +12,8 @@ function E = detectEdges(I, method, params)
 %     .LogSigma  - sigma mask LoG                                (default 2.0)
 %     .ZcScale   - ambang zero-crossing = ZcScale * mean(|R|)
 %                  (default 1.5 untuk laplace, 0.75 untuk log)
+%     .CannyThreshold - T_high Canny (skala 0..1, T_low = 0.4 * T_high),
+%                  [] = otomatis bawaan MATLAB                   (default [])
 %
 % OUTPUT:
 %   E - citra tepi biner (logical), ukuran sama dengan I
@@ -60,7 +62,9 @@ switch lower(method)
 
     % ---------- Canny (built-in, diizinkan spesifikasi) ----------
     case 'canny'
-        E = cannyOperator(G);
+        % otomatis: T_high = persentil 70 gradien, jadi ~30% piksel selalu
+        % jadi kandidat tepi -> pada citra berderau lebih baik diisi manual
+        E = cannyOperator(G, getFieldOrDefault(params, 'CannyThreshold', []));
 
     otherwise
         error('detectEdges:unknownMethod', ...

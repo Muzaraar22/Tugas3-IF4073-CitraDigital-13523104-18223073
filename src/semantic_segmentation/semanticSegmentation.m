@@ -43,13 +43,10 @@ outPath = [tempname '.png'];
 cleanup = onCleanup(@() deleteIfExists({inPath, outPath}));   % tetap dihapus walau error
 imwrite(I, inPath);
 
+% tiap path dikutip supaya spasi di path aman. tidak perlu dibungkus kutip
+% tambahan: di MATLAB R2026a (Windows) bungkus itu justru membuat cmd.exe gagal
 cmd = sprintf('"%s" "%s" --model "%s" --image "%s" --out "%s"', ...
               pythonExe, scriptPath, modelPath, inPath, outPath);
-if ispc
-    % di Windows, perintah yang diawali tanda kutip harus dibungkus 1 pasang kutip lagi
-    % (cmd.exe membuang kutip pertama & terakhir)
-    cmd = ['"' cmd '"'];
-end
 
 [status, cmdout] = system(cmd);
 if status ~= 0
