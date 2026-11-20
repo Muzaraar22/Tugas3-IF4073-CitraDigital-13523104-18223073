@@ -1,0 +1,14 @@
+# torch & torchvision sebaiknya di-install terpisah sesuai GPU (lihat README):
+#   GPU CUDA : pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+#   CPU saja : pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision>=0.13
+
+# inferensi (camvid_predict.py)
+pillow
+numpy
+
+# training lokal (camvid_train.ipynb)
+pandas
+matplotlib
+ipykernel
