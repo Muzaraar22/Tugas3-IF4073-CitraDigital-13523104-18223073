@@ -108,7 +108,7 @@ imshow(out.views(3).image)
    2. Closing dengan disk radius r → menyambung celah kontur
    3. `imfill holes` → isi region di dalam kontur tertutup
    4. Opening dengan disk r → buang garis tepi yang tidak mengapit region
-   5. Pilih region utama: luas 1%–90% citra, skor = luas × (1 − 0.5 × jarak ke pusat)
+   5. Pilih region utama: luas 1%–90% citra, skor = jumlah bobot Gaussian (σ = 0.42) tiap piksel region, sehingga piksel dekat pusat citra bernilai lebih besar
    6. Bila belum ada region, r diperbesar (+2) hingga `MaxCloseRadius`
 
 ### Parameter

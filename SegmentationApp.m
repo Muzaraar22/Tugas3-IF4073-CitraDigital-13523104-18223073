@@ -337,8 +337,10 @@ box.ValueChangedFcn = @(src, ~) set(spin, 'Enable', onOff(~src.Value));
 end
 
 function pnl = makeDisplayPanel(parent, title, row, col)
+% AutoResizeChildren dimatikan: kalau aktif, posisi axes ikut digeser saat
+% panel berubah ukuran sehingga citra tidak lagi di tengah (mis. full screen)
 pnl = uipanel(parent, 'Title', title, 'FontSize', 10, 'FontWeight', 'bold', ...
-    'BorderType', 'line', 'BackgroundColor', 'w', ...
+    'BorderType', 'line', 'BackgroundColor', 'w', 'AutoResizeChildren', 'off', ...
     'Tooltip', 'Klik kanan pada gambar lalu pilih "Salin gambar" untuk menyalinnya');
 pnl.Layout.Row = row;
 pnl.Layout.Column = col;
@@ -346,7 +348,7 @@ end
 
 function ax = makeImageAxes(app, parent)
 % axes biasa dengan posisi eksplisit supaya citra mengisi panel
-ax = axes('Parent', parent, 'Position', [0.02 0.02 0.96 0.96], 'Visible', 'off');
+ax = axes('Parent', parent, 'Position', [0.01 0.01 0.98 0.98], 'Visible', 'off');
 cm = uicontextmenu(app.Figure);
 uimenu(cm, 'Text', 'Salin gambar', 'MenuSelectedFcn', @(~, ~) onCopyAxes(app, ax));
 ax.ContextMenu = cm;

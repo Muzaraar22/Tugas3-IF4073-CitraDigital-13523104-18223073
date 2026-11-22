@@ -52,20 +52,23 @@ end
 
 
 % pilih 1 region dengan skor tertinggi:
-%   skor = luas * (1 - CENTER_WEIGHT * d),  d = jarak centroid ke pusat (0..1)
+%   skor = jumlah bobot W semua piksel region
+%   W(x, y) = exp(-(x^2 + y^2) / (2 * CENTER_SIGMA^2)),  x, y = posisi -1..1
 % alasannya: objek utama di foto biasanya besar dan ada di sekitar tengah.
+% bobot dihitung per piksel (bukan dari centroid) supaya region latar yang
+% melebar di pinggir citra tidak mendapat skor tinggi hanya karena luas.
 % region yang terlalu kecil (derau) / terlalu besar (latar) diabaikan
 function mask = pickMainRegion(BW)
 MIN_AREA_FRAC = 0.01;
 MAX_AREA_FRAC = 0.90;
-CENTER_WEIGHT = 0.5;
+CENTER_SIGMA  = 0.42;                  % makin kecil, makin mengutamakan tengah
 
 [M, N] = size(BW);
 mask  = false(M, N);
-stats = regionprops(BW, 'Area', 'Centroid', 'PixelIdxList');
+stats = regionprops(BW, 'Area', 'PixelIdxList');
 
-center = [(N + 1) / 2, (M + 1) / 2];
-dMax   = norm(center);                 % jarak pusat ke pojok, untuk normalisasi
+[X, Y] = meshgrid(linspace(-1, 1, N), linspace(-1, 1, M));
+W = exp(-(X.^2 + Y.^2) / (2 * CENTER_SIGMA^2));
 
 bestScore = -Inf;
 for i = 1:numel(stats)
@@ -73,8 +76,7 @@ for i = 1:numel(stats)
     if frac < MIN_AREA_FRAC || frac > MAX_AREA_FRAC
         continue;
     end
-    d = norm(stats(i).Centroid - center) / dMax;
-    score = stats(i).Area * (1 - CENTER_WEIGHT * d);
+    score = sum(W(stats(i).PixelIdxList));
     if score > bestScore
         bestScore = score;
         best = i;
