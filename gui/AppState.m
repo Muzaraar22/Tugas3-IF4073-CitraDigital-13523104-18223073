@@ -23,10 +23,8 @@ classdef AppState < handle
         SaveButton = [];
 
         % panel deteksi tepi
-        EdgeOperator = [];
-        EdgeSigma    = []; EdgeAutoT = []; EdgeT = [];
-        EdgeLogSigma = []; EdgeZcScale = [];
-        EdgeAutoCanny = []; EdgeCannyT = [];
+        EdgeOperator = []; EdgeSigma = []; EdgeLogSigma = [];
+        EdgeThrMode  = []; EdgePercentile = []; EdgeT = [];
         EdgeMinLength = []; EdgeCloseR = []; EdgeMaxCloseR = [];
 
         % panel split and merge
@@ -38,7 +36,7 @@ classdef AppState < handle
         % ---- panel kanan ----
         TabGroup  = []; ResultTab = []; StepsTab = [];
         ViewPanels = []; ViewAxes = [];   % 4 panel tab Hasil
-        StepPanels = []; StepAxes = [];   % 6 panel tab Tahapan Tepi
+        StepPanels = []; StepAxes = [];   % 8 panel tab Tahapan Tepi
         LogText   = [];
     end
 end

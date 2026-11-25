@@ -130,7 +130,10 @@ end
 % ---------------------------------------------------------------------------
 function buildEdgePanel(app)
 
-g = paramPanel(app, 'edge', 1, 11);
+g = paramPanel(app, 'edge', 1, 13);
+
+% --- a. konvolusi operator -> respons --------------------------------------
+subSection(g, 'a. Deteksi tepi (konvolusi)');
 
 uilabel(g, 'Text', 'Operator');
 app.EdgeOperator = uidropdown(g, ...
@@ -140,28 +143,40 @@ app.EdgeOperator = uidropdown(g, ...
 app.EdgeOperator.ValueChangedFcn = @(~, ~) onOperatorChanged(app);
 
 uilabel(g, 'Text', 'Sigma Gaussian');
-app.EdgeSigma = uispinner(g, 'Value', 1.0, 'Limits', [0 Inf], 'Step', 0.1, ...
-    'Tooltip', 'Pelembutan sebelum Sobel/Prewitt/Roberts/Laplace. 0 = tanpa pelembutan');
-
-uilabel(g, 'Text', 'Threshold gradien');
-[app.EdgeAutoT, app.EdgeT] = autoSpinner(g, 'Otsu', 0.2, ...
-    'Ambang magnitudo gradien ternormalisasi (0..1). Centang Otsu untuk ambang otomatis');
+app.EdgeSigma = uispinner(g, 'Value', 0, 'Limits', [0 Inf], 'Step', 0.1, ...
+    'Tooltip', ['Pelembutan Gaussian opsional sebelum Sobel/Prewitt/Roberts/Laplace. ' ...
+                '0 (bawaan) = operator langsung pada citra asli']);
 
 uilabel(g, 'Text', 'Sigma LoG');
 app.EdgeLogSigma = uispinner(g, 'Value', 2.0, 'Limits', [0 Inf], ...
     'LowerLimitInclusive', 'off', 'Step', 0.1, ...
     'Tooltip', 'Sigma mask LoG: makin besar makin sedikit tepi halus');
 
-uilabel(g, 'Text', 'ZcScale');
-app.EdgeZcScale = uispinner(g, 'Value', 1.5, 'Limits', [0 Inf], 'Step', 0.05, ...
-    'Tooltip', 'Ambang zero-crossing = ZcScale x rata-rata |respon|');
+% --- b. ambang -> tepi biner -----------------------------------------------
+subSection(g, 'b. Ambang (respons -> tepi biner)');
 
-uilabel(g, 'Text', 'Threshold Canny');
-[app.EdgeAutoCanny, app.EdgeCannyT] = autoSpinner(g, 'Otomatis', 0.1, ...
-    'T_high Canny (0..1), T_low = 0.4 x T_high. Otomatis = bawaan MATLAB');
+thrTip = ['Ambang diterapkan pada kekuatan tepi skala 0..1: magnitudo gradien ' ...
+    '(Sobel/Prewitt/Roberts/Canny) atau kecuraman zero-crossing (Laplace/LoG). ' ...
+    'Pada Canny nilai ini menjadi T_high, dengan T_low = 0.4 x T_high.'];
+uilabel(g, 'Text', 'Metode ambang');
+app.EdgeThrMode = uidropdown(g, ...
+    'Items',     {'Otsu (otomatis)', 'Persentil', 'Manual'}, ...
+    'ItemsData', {'otsu', 'percentile', 'manual'}, ...
+    'Value', 'otsu', 'BackgroundColor', 'w', ...
+    'Tooltip', ['Otsu: ambang yang paling memisahkan histogram kekuatan tepi menjadi ' ...
+                '2 kelas. Persentil: P% kandidat terlemah dibuang. Manual: T tetap. ' thrTip]);
+app.EdgeThrMode.ValueChangedFcn = @(~, ~) onThresholdModeChanged(app);
 
-sub = uilabel(g, 'Text', 'Segmentasi dari tepi', 'FontWeight', 'bold');
-sub.Layout.Column = [1 2];
+uilabel(g, 'Text', 'Persentil P (%)');
+app.EdgePercentile = uispinner(g, 'Value', 90, 'Limits', [0 100], ...
+    'LowerLimitInclusive', 'off', 'UpperLimitInclusive', 'off', 'Step', 1, ...
+    'Tooltip', ['P% kandidat tepi terlemah dibuang, (100 - P)% terkuat menjadi tepi. ' thrTip]);
+
+uilabel(g, 'Text', 'Threshold manual');
+app.EdgeT = unitSpinner(g, 0.2, ['Ambang T (0..1] relatif terhadap respons maksimum. ' thrTip]);
+
+% --- c. morfologi -> region ------------------------------------------------
+subSection(g, 'c. Pembentukan region (morfologi)');
 
 uilabel(g, 'Text', 'MinEdgeLength');
 app.EdgeMinLength = intSpinner(g, 30, ...
@@ -175,8 +190,8 @@ uilabel(g, 'Text', 'MaxCloseRadius');
 app.EdgeMaxCloseR = intSpinner(g, 15, ...
     'Radius dinaikkan +2 sampai nilai ini kalau belum ada kontur tertutup');
 
-hint(g, ['Field yang abu-abu tidak dipakai operator terpilih. Tahapan segmentasi ' ...
-    'bisa dilihat di tab Tahapan Tepi.']);
+hint(g, ['Alur: konvolusi -> ambang -> tepi biner -> morfologi -> region. ' ...
+    'Field abu-abu tidak dipakai. Setiap tahap bisa dilihat di tab Tahapan Tepi.']);
 end
 
 % ---------------------------------------------------------------------------
@@ -262,18 +277,18 @@ inner.BackgroundColor = 'w';
 app.LogText = uitextarea(inner, 'Editable', 'off', ...
     'FontName', 'Consolas', 'FontSize', 10);
 
-% tab Tahapan Tepi: 6 citra (2x3)
-g = uigridlayout(app.StepsTab, [2 3]);
+% tab Tahapan Tepi: 8 citra (2x4)
+g = uigridlayout(app.StepsTab, [2 4]);
 g.RowSpacing = 6;
 g.ColumnSpacing = 6;
 g.Padding = [6 6 6 6];
 g.BackgroundColor = [0.94 0.94 0.94];
 
-app.StepPanels = gobjects(1, 6);
-app.StepAxes   = gobjects(1, 6);
-for k = 1:6
-    row = ceil(k / 3);
-    col = k - 3 * (row - 1);
+app.StepPanels = gobjects(1, 8);
+app.StepAxes   = gobjects(1, 8);
+for k = 1:8
+    row = ceil(k / 4);
+    col = k - 4 * (row - 1);
     app.StepPanels(k) = makeDisplayPanel(g, sprintf('TAHAP %d', k), row, col);
     app.StepAxes(k)   = makeImageAxes(app, app.StepPanels(k));
 end
@@ -289,6 +304,7 @@ pnl.Layout.Row = row;
 app.Panels.(name) = pnl;
 
 g = uigridlayout(pnl, [nRows 2]);
+g.Scrollable = 'on';      % jendela pendek: panel parameter bisa digulir
 g.RowHeight = [repmat({26}, 1, nRows - 1), {'1x'}];
 g.ColumnWidth = {115, '1x'};
 g.RowSpacing = 6;
@@ -299,6 +315,12 @@ end
 
 function sectionLabel(parent, text)
 uilabel(parent, 'Text', text, 'FontWeight', 'bold', 'FontColor', [0.15 0.25 0.45]);
+end
+
+function subSection(g, text)
+% judul kelompok parameter di dalam panel parameter (selebar 2 kolom)
+sub = uilabel(g, 'Text', text, 'FontWeight', 'bold', 'VerticalAlignment', 'bottom');
+sub.Layout.Column = [1 2];
 end
 
 function g = rowGrid(parent, widths)
@@ -325,15 +347,6 @@ function s = unitSpinner(parent, value, tip)
 % angka di (0, 1]
 s = uispinner(parent, 'Value', value, 'Limits', [0 1], 'LowerLimitInclusive', 'off', ...
     'Step', 0.01, 'ValueDisplayFormat', '%.3f', 'Tooltip', tip);
-end
-
-function [box, spin] = autoSpinner(parent, autoText, value, tip)
-% checkbox "otomatis" + spinner (0, 1]; spinner mati selama checkbox dicentang
-row  = rowGrid(parent, {80, '1x'});
-box  = uicheckbox(row, 'Text', autoText, 'Value', true, 'Tooltip', tip);
-spin = unitSpinner(row, value, tip);
-spin.Enable = 'off';
-box.ValueChangedFcn = @(src, ~) set(spin, 'Enable', onOff(~src.Value));
 end
 
 function pnl = makeDisplayPanel(parent, title, row, col)
@@ -453,24 +466,28 @@ end
 
 function onOperatorChanged(app)
 % nyalakan hanya field yang dipakai operator terpilih
+% (Canny memakai pelembutan bawaannya sendiri, LoG memakai Sigma LoG)
 op = app.EdgeOperator.Value;
-isGradient = any(strcmp(op, {'sobel', 'prewitt', 'roberts'}));
-isZc       = any(strcmp(op, {'laplace', 'log'}));
+app.EdgeSigma.Enable    = onOff(any(strcmp(op, {'sobel', 'prewitt', 'roberts', 'laplace'})));
+app.EdgeLogSigma.Enable = onOff(strcmp(op, 'log'));
 
-app.EdgeSigma.Enable     = onOff(isGradient || strcmp(op, 'laplace'));
-app.EdgeAutoT.Enable     = onOff(isGradient);
-app.EdgeT.Enable         = onOff(isGradient && ~app.EdgeAutoT.Value);
-app.EdgeLogSigma.Enable  = onOff(strcmp(op, 'log'));
-app.EdgeZcScale.Enable   = onOff(isZc);
-app.EdgeAutoCanny.Enable = onOff(strcmp(op, 'canny'));
-app.EdgeCannyT.Enable    = onOff(strcmp(op, 'canny') && ~app.EdgeAutoCanny.Value);
-
-% ZcScale default Laplace dan LoG berbeda (lihat detectEdges.m)
-if strcmp(op, 'laplace')
-    app.EdgeZcScale.Value = 1.5;
-elseif strcmp(op, 'log')
-    app.EdgeZcScale.Value = 0.75;
+% ambang kembali ke default operator (sama dengan detectEdges.m):
+% Laplace/LoG persentil 70, lainnya Otsu
+if any(strcmp(op, {'laplace', 'log'}))
+    app.EdgeThrMode.Value    = 'percentile';
+    app.EdgePercentile.Value = 70;
+else
+    app.EdgeThrMode.Value    = 'otsu';
+    app.EdgePercentile.Value = 90;
 end
+onThresholdModeChanged(app);
+end
+
+function onThresholdModeChanged(app)
+% hanya spinner milik metode ambang terpilih yang aktif
+mode = app.EdgeThrMode.Value;
+app.EdgePercentile.Enable = onOff(strcmp(mode, 'percentile'));
+app.EdgeT.Enable          = onOff(strcmp(mode, 'manual'));
 end
 
 function onBrowsePython(app)
@@ -577,10 +594,10 @@ switch method
         params = struct( ...
             'Operator',       app.EdgeOperator.Value, ...
             'Sigma',          app.EdgeSigma.Value, ...
-            'Threshold',      autoOrValue(app.EdgeAutoT, app.EdgeT), ...
             'LogSigma',       app.EdgeLogSigma.Value, ...
-            'ZcScale',        app.EdgeZcScale.Value, ...
-            'CannyThreshold', autoOrValue(app.EdgeAutoCanny, app.EdgeCannyT), ...
+            'ThresholdMode',  app.EdgeThrMode.Value, ...
+            'Percentile',     app.EdgePercentile.Value, ...
+            'Threshold',      app.EdgeT.Value, ...
             'MinEdgeLength',  app.EdgeMinLength.Value, ...
             'CloseRadius',    app.EdgeCloseR.Value, ...
             'MaxCloseRadius', app.EdgeMaxCloseR.Value);
@@ -596,15 +613,6 @@ switch method
         params = struct( ...
             'PythonExe', app.SemPython.Value, ...
             'ModelPath', app.SemModel.Value);
-end
-end
-
-function v = autoOrValue(box, spin)
-% [] kalau checkbox "otomatis" dicentang, nilai spinner kalau tidak
-if box.Value
-    v = [];
-else
-    v = spin.Value;
 end
 end
 
@@ -637,7 +645,7 @@ end
 
 function showSteps(app, steps)
 % tahapan hanya ada untuk deteksi tepi; metode lain mengosongkan tab
-for k = 1:6
+for k = 1:numel(app.StepPanels)
     if k <= numel(steps)
         app.StepPanels(k).Title = upper(steps(k).title);
         drawImage(app.StepAxes(k), steps(k).image);

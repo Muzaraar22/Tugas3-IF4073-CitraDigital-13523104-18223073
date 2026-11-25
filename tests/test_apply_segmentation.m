@@ -22,14 +22,31 @@ I = I(1:120, 1:100, :);   % potong supaya cepat
 sz = [size(I, 1) size(I, 2)];
 
 %% 1. keluaran tiap metode
+% view 2 = respons operator (abu-abu 0..1, belum biner), tahap 2 = tepi biner
 for op = {'laplace', 'log', 'sobel', 'prewitt', 'roberts', 'canny'}
-    out = applySegmentationMethod(I, 'edge', struct('Operator', op{1}));
-    stats = report(numel(out.views) == 4 && numel(out.steps) == 6 && sameSize(out.views, sz), ...
-        sprintf('edge %-8s: 4 view + 6 tahap, ukuran sama', op{1}), stats);
+    for mode = {'otsu', 'percentile', 'manual'}
+        out = applySegmentationMethod(I, 'edge', struct('Operator', op{1}, 'ThresholdMode', mode{1}));
+        resp = out.views(2).image;
+        ok = numel(out.views) == 4 && numel(out.steps) == 8 && sameSize(out.views, sz) && ...
+             isfloat(resp) && min(resp(:)) >= 0 && max(resp(:)) <= 1 && ...
+             islogical(out.steps(2).image);
+        stats = report(ok, sprintf('edge %-8s %-10s: 4 view + 8 tahap, respons 0..1', ...
+            op{1}, mode{1}), stats);
+    end
 end
 
-out = applySegmentationMethod(I, 'edge', struct('Operator', 'canny', 'CannyThreshold', 0.1));
-stats = report(contains(out.paramText, 'CannyThreshold = 0.1'), 'edge canny: CannyThreshold manual dipakai', stats);
+out = applySegmentationMethod(I, 'edge', struct('Operator', 'canny', ...
+    'ThresholdMode', 'manual', 'Threshold', 0.1));
+stats = report(contains(out.paramText, 'Manual, T = 0.100'), 'edge canny: ambang manual dipakai', stats);
+
+% persentil makin besar -> piksel tepi makin sedikit
+e = zeros(1, 2);
+P = [70 95];
+for k = 1:2
+    out = applySegmentationMethod(I, 'edge', struct('ThresholdMode', 'percentile', 'Percentile', P(k)));
+    e(k) = nnz(out.steps(2).image);
+end
+stats = report(e(1) > e(2), sprintf('persentil 70 -> %d px tepi, 95 -> %d px', e(1), e(2)), stats);
 
 out = applySegmentationMethod(I, 'splitmerge', struct());
 stats = report(numel(out.views) == 4 && isempty(out.steps) && sameSize(out.views, sz), ...
@@ -74,7 +91,9 @@ cases = {
     'Threshold > 1',                  I,             'edge',       struct('Threshold', 1.5),                    'diLuarRentang'
     'Threshold = 0',                  I,             'edge',       struct('Threshold', 0),                      'diLuarRentang'
     'LogSigma = 0',                   I,             'edge',       struct('Operator', 'log', 'LogSigma', 0),    'diLuarRentang'
-    'CannyThreshold > 1',             I,             'edge',       struct('CannyThreshold', 2),                 'diLuarRentang'
+    'metode ambang tidak dikenal',    I,             'edge',       struct('ThresholdMode', 'triangle'),         'modeAmbangTidakDikenal'
+    'Percentile = 0',                 I,             'edge',       struct('Percentile', 0),                     'diLuarRentang'
+    'Percentile = 100',               I,             'edge',       struct('Percentile', 100),                   'diLuarRentang'
     'MinEdgeLength pecahan',          I,             'edge',       struct('MinEdgeLength', 2.5),                'diLuarRentang'
     'CloseRadius 0',                  I,             'edge',       struct('CloseRadius', 0),                    'diLuarRentang'
     'MaxCloseRadius < CloseRadius',   I,             'edge',       struct('CloseRadius', 9, 'MaxCloseRadius', 5), 'radiusTerbalik'

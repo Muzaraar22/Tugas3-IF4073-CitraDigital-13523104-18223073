@@ -8,17 +8,21 @@ function res = edgeSegmentation(I, method, params)
 %
 % OUTPUT:
 %   res - struct:
-%     .edges     - citra tepi biner
-%     .mask      - mask objek hasil segmentasi
-%     .segmented - objek saja, latar belakang hitam
-%     .overlay   - citra asli + garis batas objek (merah)
-%     .steps     - citra antara segmentasi (lihat segmentFromEdges.m)
+%     .response      - respons operator sebelum diambang (double 0..1)
+%     .thresholdText - ambang yang dipakai, mis. 'Otsu, T = 0.143'
+%     .edges         - citra tepi biner
+%     .mask          - mask objek hasil segmentasi
+%     .segmented     - objek saja, latar belakang hitam
+%     .overlay       - citra asli + garis batas objek (merah)
+%     .steps         - citra antara segmentasi (lihat segmentFromEdges.m)
 
 if nargin < 3
     params = struct();
 end
 
-res.edges = detectEdges(I, method, params);
+[res.edges, info] = detectEdges(I, method, params);
+res.response      = info.response;
+res.thresholdText = info.modeText;
 [res.mask, res.steps] = segmentFromEdges(res.edges, params);
 
 % citra asli versi RGB double, supaya bisa dikali mask & diberi warna

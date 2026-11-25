@@ -17,9 +17,9 @@ function out = applySegmentationMethod(img, method, params)
 %
 % Daftar field params per method (kosong / tidak ada = default):
 %   edge        .Operator 'laplace'|'log'|'sobel'|'prewitt'|'roberts'|'canny'
-%               .Sigma (>= 0)  .Threshold ([] = Otsu, 0 < T <= 1)
-%               .LogSigma (> 0)  .ZcScale (>= 0)
-%               .CannyThreshold ([] = otomatis, 0 < T <= 1)
+%               .Sigma (>= 0)  .LogSigma (> 0)
+%               .ThresholdMode 'otsu'|'percentile'|'manual' (default otsu)
+%               .Percentile (0 < P < 100)  .Threshold (manual, 0 < T <= 1)
 %               .MinEdgeLength  .CloseRadius  .MaxCloseRadius (bulat >= 1)
 %   splitmerge  .Predicate 'std'|'range'  .SplitThreshold  .MergeThreshold (0 < T <= 1)
 %               .MinBlockSize (bulat >= 1)
@@ -66,18 +66,20 @@ if ~any(strcmp(operator, operators))
         'Operator tidak dikenal: %s. Pilih %s.', operator, strjoin(operators, ', '));
 end
 
-% ZcScale default beda untuk Laplace dan LoG (lihat detectEdges.m)
-if strcmp(operator, 'log')
-    zcDefault = 0.75;
-else
-    zcDefault = 1.5;
+% default ambang per operator (lihat detectEdges.m): Laplace/LoG persentil 70,
+% lainnya Otsu
+[modeDefault, pDefault] = defaultThreshold(operator);
+p.ThresholdMode = lower(getText(params, 'ThresholdMode', modeDefault));
+modes = {'otsu', 'percentile', 'manual'};
+if ~any(strcmp(p.ThresholdMode, modes))
+    error('applySegmentationMethod:modeAmbangTidakDikenal', ...
+        'Metode ambang tidak dikenal: %s. Pilih %s.', p.ThresholdMode, strjoin(modes, ', '));
 end
 
-p.Sigma          = numParam(params, 'Sigma', 1.0, 'nonneg');
-p.Threshold      = numParam(params, 'Threshold', [], 'unit');
+p.Sigma          = numParam(params, 'Sigma', 0, 'nonneg');   % 0 = tanpa pelembutan
 p.LogSigma       = numParam(params, 'LogSigma', 2.0, 'pos');
-p.ZcScale        = numParam(params, 'ZcScale', zcDefault, 'nonneg');
-p.CannyThreshold = numParam(params, 'CannyThreshold', [], 'unit');
+p.Percentile     = numParam(params, 'Percentile', pDefault, 'percent');
+p.Threshold      = numParam(params, 'Threshold', 0.2, 'unit');
 p.MinEdgeLength  = numParam(params, 'MinEdgeLength', 30, 'posint');
 p.CloseRadius    = numParam(params, 'CloseRadius', 3, 'posint');
 p.MaxCloseRadius = numParam(params, 'MaxCloseRadius', 15, 'posint');
@@ -91,45 +93,65 @@ res = edgeSegmentation(img, operator, p);
 
 edgePct = 100 * mean(res.edges(:));
 maskPct = 100 * mean(res.mask(:));
+responseTitle = sprintf('Respons %s (sebelum ambang)', operatorName(operator));
 out.views = makeViews( ...
     'Citra asli', img, ...
-    sprintf('Citra tepi (%.1f%% piksel)', edgePct), res.edges, ...
+    responseTitle, res.response, ...
     'Overlay batas objek', res.overlay, ...
     sprintf('Objek tersegmentasi (%.1f%% luas)', maskPct), res.segmented);
 
 s = res.steps;
 out.steps = struct( ...
-    'title', {'1. Tepi biner', ...
-              sprintf('2. Fragmen < %d px dibuang', p.MinEdgeLength), ...
-              sprintf('3. Closing (r = %d)', s.radius), ...
-              '4. Fill holes', '5. Opening', '6. Objek tersegmentasi'}, ...
-    'image', {res.edges, s.cleaned, s.closed, s.filled, s.opened, res.segmented});
+    'title', {['1. ' responseTitle], ...
+              sprintf('2. Tepi biner (%.1f%% piksel)', edgePct), ...
+              sprintf('3. Fragmen < %d px dibuang', p.MinEdgeLength), ...
+              sprintf('4. Closing (r = %d)', s.radius), ...
+              '5. Fill holes', '6. Opening', ...
+              '7. Region utama (mask)', '8. Objek tersegmentasi'}, ...
+    'image', {res.response, res.edges, s.cleaned, s.closed, s.filled, s.opened, ...
+              res.mask, res.segmented});
 
 out.methodName = sprintf('Deteksi tepi - %s', upper(operator));
-out.paramText  = sprintf('%s; MinEdgeLength = %d, CloseRadius = %d..%d', ...
-    edgeParamText(operator, p), p.MinEdgeLength, p.CloseRadius, p.MaxCloseRadius);
+out.paramText  = sprintf('%s; ambang %s; MinEdgeLength = %d, CloseRadius = %d..%d', ...
+    edgeParamText(operator, p), res.thresholdText, p.MinEdgeLength, ...
+    p.CloseRadius, p.MaxCloseRadius);
 out.summary = { ...
+    sprintf('Ambang                 : %s', res.thresholdText), ...
     sprintf('Piksel tepi            : %.1f%%', edgePct), ...
     sprintf('Luas objek             : %.1f%%', maskPct), ...
     sprintf('Radius closing dipakai : %d', s.radius)};
 if ~any(res.mask(:))
     out.summary{end + 1} = ['PERINGATAN: tidak ada kontur tertutup. Coba perbesar ' ...
-        'MaxCloseRadius atau kecilkan MinEdgeLength.'];
+        'MaxCloseRadius, kecilkan MinEdgeLength, atau turunkan ambang.'];
 end
 end
 
 function t = edgeParamText(operator, p)
-% hanya parameter yang benar-benar dipakai operator terpilih
+% hanya parameter operator yang benar-benar dipakai operator terpilih
 switch operator
-    case {'sobel', 'prewitt', 'roberts'}
-        t = sprintf('Sigma = %g, Threshold = %s', p.Sigma, autoText(p.Threshold, 'Otsu'));
-    case 'laplace'
-        t = sprintf('Sigma = %g, ZcScale = %g', p.Sigma, p.ZcScale);
+    case {'sobel', 'prewitt', 'roberts', 'laplace'}
+        t = sprintf('Sigma = %g', p.Sigma);
     case 'log'
-        t = sprintf('LogSigma = %g, ZcScale = %g', p.LogSigma, p.ZcScale);
+        t = sprintf('LogSigma = %g', p.LogSigma);
     case 'canny'
-        t = sprintf('CannyThreshold = %s', autoText(p.CannyThreshold, 'otomatis'));
+        t = 'Sigma Canny = 1.41 (bawaan)';
 end
+end
+
+function [mode, P] = defaultThreshold(operator)
+% default metode ambang + persentil per operator
+% (nilai yang sama dipasang GUI di onOperatorChanged)
+if any(strcmp(operator, {'laplace', 'log'}))
+    mode = 'percentile';  P = 70;
+else
+    mode = 'otsu';        P = 90;
+end
+end
+
+function name = operatorName(operator)
+names = struct('laplace', 'Laplace', 'log', 'LoG', 'sobel', 'Sobel', ...
+               'prewitt', 'Prewitt', 'roberts', 'Roberts', 'canny', 'gradien Canny');
+name = names.(operator);
 end
 
 % ---------------------------------------------------------------------------
@@ -231,7 +253,8 @@ end
 
 function v = numParam(s, name, default, rule)
 % ambil parameter angka dari struct lalu cek rentangnya.
-% rule: 'nonneg' (>= 0), 'pos' (> 0), 'unit' (0 < v <= 1), 'posint' (bulat >= 1)
+% rule: 'nonneg' (>= 0), 'pos' (> 0), 'unit' (0 < v <= 1), 'percent' (0 < v < 100),
+%       'posint' (bulat >= 1)
 if ~isfield(s, name) || isempty(s.(name))
     v = default;
     return;
@@ -246,6 +269,7 @@ switch rule
     case 'nonneg', ok = v >= 0;           syarat = '>= 0';
     case 'pos',    ok = v > 0;            syarat = '> 0';
     case 'unit',   ok = v > 0 && v <= 1;  syarat = 'di antara 0 (eksklusif) dan 1';
+    case 'percent', ok = v > 0 && v < 100; syarat = 'di antara 0 dan 100 (eksklusif)';
     case 'posint', ok = v >= 1 && v == round(v); syarat = 'bilangan bulat >= 1';
 end
 if ~ok
@@ -264,12 +288,4 @@ if ~(ischar(v) || (isstring(v) && isscalar(v)))
     error('applySegmentationMethod:bukanTeks', 'Parameter %s harus berupa teks.', name);
 end
 v = char(v);
-end
-
-function t = autoText(v, autoName)
-if isempty(v)
-    t = autoName;
-else
-    t = sprintf('%g', v);
-end
 end
