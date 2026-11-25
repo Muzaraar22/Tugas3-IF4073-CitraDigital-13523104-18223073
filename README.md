@@ -4,7 +4,8 @@ Aplikasi MATLAB (`SegmentationApp`) untuk segmentasi citra dengan tiga pendekata
 
 1. **Deteksi tepi** (Laplace, LoG, Sobel, Prewitt, Roberts, Canny) → segmentasi objek utama
 2. **Split and merge** (quadtree split + merge region bertetangga)
-3. **Semantic segmentation** (DeepLabV3 MobileNetV3 hasil fine-tuning CamVid, 11 kelas, inferensi di Python)
+3. **Semantic segmentation** (DeepLabV3 MobileNetV3 hasil fine-tuning CamVid, 11 kelas, inferensi di Python;
+   DeepLabV3 ResNet-50 sebagai model pembanding)
 
 ## Struktur
 
@@ -26,15 +27,22 @@ Tugas3-IF4073-CitraDigital-13523104/
 │   │   ├── segmentFromEdges.m     # citra tepi -> mask objek utama
 │   │   └── edgeSegmentation.m     # pipeline lengkap Bagian B
 │   ├── split_merge/               # quadtreeSplit, mergeRegions, isHomogeneous, splitAndMerge
-│   ├── semantic_segmentation/     # semanticSegmentation.m, camvid_predict.py, model/*.pth
-│   └── utils/                     # konvolusi, kernel Gaussian/LoG, Otsu, zero-crossing
+│   ├── semantic_segmentation/
+│   │   ├── semanticSegmentation.m        # pemanggil Python dari MATLAB + visualisasi
+│   │   ├── camvid_predict.py             # inferensi 1 citra (arsitektur dibaca dari checkpoint)
+│   │   ├── camvid_train.ipynb            # training DeepLabV3 + MobileNetV3-Large (model utama)
+│   │   ├── camvid_train_resnet50.ipynb   # training DeepLabV3 + ResNet-50 + perbandingan kedua model
+│   │   └── model/                        # camvid_deeplabv3_mbv3.pth, camvid_deeplabv3_r50.pth
+│   └── utils/                     # konvolusi, kernel Gaussian/LoG, Otsu, persentil, zero-crossing
 └── tests/
     ├── test_apply_segmentation.m  # uji titik masuk GUI: keluaran + validasi input
     ├── test_edge_operators.m      # uji operator (sintetis + contoh slide)
     ├── test_edge_segmentation.m   # uji segmentasi tepi: lingkaran sintetis + 8 citra BSDS500
     ├── test_split_merge.m         # uji split and merge pada 8 citra BSDS500
     ├── test_semantic_segmentation.m  # uji MATLAB <-> Python pada citra CamVid test
-    └── ...                        # skrip eksplorasi (demo_arah_gradien, compare_steps_log_canny, ...)
+    ├── test_split_merge_gui.m     # GUI kecil untuk mencoba parameter split and merge
+    ├── compare_steps_log_canny.m  # bandingkan tahapan LoG vs Canny pada lingkaran sintetis
+    └── analyze_threshold_percentile.m  # analisis Otsu vs persentil (Subbab 4.1.11 laporan)
 ```
 
 ## Dataset
@@ -63,6 +71,10 @@ data/CamVid/
 - Bagian D: Python 3 dengan paket di `src/semantic_segmentation/requirements.txt`
   (`torch`, `torchvision`, `pillow`, `numpy`) dan model
   `src/semantic_segmentation/model/camvid_deeplabv3_mbv3.pth`.
+  - Model pembanding `camvid_deeplabv3_r50.pth` (sekitar 150 MB) dibuat oleh `camvid_train_resnet50.ipynb`
+    (GPU CUDA, sekitar 20 menit di RTX 4060). Untuk memakainya di GUI, isi path model dengan file tersebut.
+  - Hasil perbandingan kedua model (mIoU, IoU per kelas, waktu inferensi, contoh prediksi) disimpan
+    notebook itu di `results/semantic_compare/`.
 
 ## Menjalankan GUI
 

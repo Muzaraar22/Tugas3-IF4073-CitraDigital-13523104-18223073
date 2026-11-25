@@ -1,5 +1,6 @@
 """
-segmentasi semantik 1 citra dengan model hasil fine-tuning CamVid (camvid_train.ipynb).
+segmentasi semantik 1 citra dengan model hasil fine-tuning CamVid
+(camvid_train.ipynb: MobileNetV3, camvid_train_resnet50.py: ResNet-50).
 dipanggil dari MATLAB (semanticSegmentation.m) lewat system().
 
 pemakaian:
@@ -14,7 +15,13 @@ import argparse
 import numpy as np
 import torch
 from PIL import Image
-from torchvision.models.segmentation import deeplabv3_mobilenet_v3_large
+from torchvision.models.segmentation import deeplabv3_mobilenet_v3_large, deeplabv3_resnet50
+
+# arsitektur yang bisa dibaca, sesuai field 'arch' di checkpoint
+ARCHS = {
+    'deeplabv3_mobilenet_v3_large': deeplabv3_mobilenet_v3_large,   # camvid_train.ipynb
+    'deeplabv3_resnet50': deeplabv3_resnet50,                       # camvid_train_resnet50.py
+}
 
 
 def load_model(model_path):
@@ -22,8 +29,11 @@ def load_model(model_path):
     ckpt = torch.load(model_path, map_location="cpu")
 
     # arsitektur dibuat kosong (tanpa download bobot), lalu diisi bobot hasil fine-tuning
-    model = deeplabv3_mobilenet_v3_large(weights=None, weights_backbone=None,
-                                         num_classes=len(ckpt["class_names"]), aux_loss=False)
+    arch = ckpt.get("arch", "deeplabv3_mobilenet_v3_large")
+    if arch not in ARCHS:
+        raise ValueError(f"arsitektur checkpoint tidak dikenal: {arch}")
+    model = ARCHS[arch](weights=None, weights_backbone=None,
+                        num_classes=len(ckpt["class_names"]), aux_loss=False)
     model.load_state_dict(ckpt["state_dict"])
     model.eval()
     return model, ckpt
