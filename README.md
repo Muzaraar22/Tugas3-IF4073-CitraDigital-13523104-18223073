@@ -71,8 +71,10 @@ data/CamVid/
 - Bagian D: Python 3 dengan paket di `src/semantic_segmentation/requirements.txt`
   (`torch`, `torchvision`, `pillow`, `numpy`) dan model
   `src/semantic_segmentation/model/camvid_deeplabv3_mbv3.pth`.
-  - Model pembanding `camvid_deeplabv3_r50.pth` (sekitar 150 MB) dibuat oleh `camvid_train_resnet50.ipynb`
-    (GPU CUDA, sekitar 20 menit di RTX 4060). Untuk memakainya di GUI, isi path model dengan file tersebut.
+  - Model pembanding `camvid_deeplabv3_r50.pth` dibuat oleh `camvid_train_resnet50.ipynb`
+    (GPU CUDA, sekitar 22 menit di RTX 4060). Bobotnya disimpan float16 (sekitar 76 MB, di bawah batas
+    file GitHub 100 MB) dan otomatis kembali ke float32 saat dimuat; mIoU test float16 = float32.
+    Di GUI pilih **Model DeepLabV3 → ResNet-50 (pembanding)**.
   - Hasil perbandingan kedua model (mIoU, IoU per kelas, waktu inferensi, contoh prediksi) disimpan
     notebook itu di `results/semantic_compare/`.
 
@@ -94,7 +96,7 @@ SegmentationApp
 |---|---|---|
 | Deteksi tepi | respons operator (sebelum ambang), overlay batas objek, objek tersegmentasi | lihat tabel Bagian B |
 | Split and merge | after split, after merge, rekonstruksi rata-rata | `Predicate` (std/range), `SplitThreshold`, `MergeThreshold` (0..1), `MinBlockSize` |
-| Semantik CNN | label kelas, overlay, legenda + % piksel per kelas | path Python, path model |
+| Semantik CNN | label kelas, overlay, legenda + % piksel per kelas | path Python, model (MobileNetV3 / ResNet-50 / file lain) |
 
 **Validasi input:**
 - **Citra:**

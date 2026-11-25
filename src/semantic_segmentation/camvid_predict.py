@@ -34,7 +34,9 @@ def load_model(model_path):
         raise ValueError(f"arsitektur checkpoint tidak dikenal: {arch}")
     model = ARCHS[arch](weights=None, weights_backbone=None,
                         num_classes=len(ckpt["class_names"]), aux_loss=False)
-    model.load_state_dict(ckpt["state_dict"])
+    # model ResNet-50 menyimpan bobot float16 supaya file < 100 MB, inferensi tetap float32
+    state = {k: v.float() if v.is_floating_point() else v for k, v in ckpt["state_dict"].items()}
+    model.load_state_dict(state)
     model.eval()
     return model, ckpt
 

@@ -31,7 +31,7 @@ classdef AppState < handle
         SmPredicate = []; SmSplitT = []; SmMergeT = []; SmMinBlock = [];
 
         % panel semantik
-        SemPython = []; SemModel = [];
+        SemPython = []; SemModelChoice = []; SemModel = [];
 
         % ---- panel kanan ----
         TabGroup  = []; ResultTab = []; StepsTab = [];

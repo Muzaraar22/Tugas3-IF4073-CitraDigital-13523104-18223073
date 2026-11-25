@@ -223,7 +223,7 @@ end
 % ---------------------------------------------------------------------------
 function buildSemanticPanel(app)
 
-g = paramPanel(app, 'semantic', 3, 3);
+g = paramPanel(app, 'semantic', 3, 4);
 
 uilabel(g, 'Text', 'Python');
 row = rowGrid(g, {'1x', 50});
@@ -231,15 +231,33 @@ app.SemPython = uieditfield(row, 'Value', 'python', ...
     'Tooltip', 'Python yang sudah terpasang torch & torchvision (requirements.txt)');
 uibutton(row, 'Text', 'Cari', 'ButtonPushedFcn', @(~, ~) onBrowsePython(app));
 
-uilabel(g, 'Text', 'Model (.pth)');
+uilabel(g, 'Text', 'Model DeepLabV3');
+app.SemModelChoice = uidropdown(g, ...
+    'Items', {'MobileNetV3 (utama)', 'ResNet-50 (pembanding)', 'File lain (.pth)'}, ...
+    'ItemsData', {'mbv3', 'r50', 'custom'}, 'Value', 'mbv3', 'BackgroundColor', 'w', ...
+    'Tooltip', ['MobileNetV3: ringan dan cepat. ResNet-50: lebih akurat (mIoU test 0,716 ' ...
+                'vs 0,637) tetapi sekitar 6x lebih lambat'], ...
+    'ValueChangedFcn', @(~, ~) onSemModelChanged(app));
+
+uilabel(g, 'Text', 'File model');
 row = rowGrid(g, {'1x', 50});
-app.SemModel = uieditfield(row, 'Value', fullfile(app.RootFolder, 'src', ...
-    'semantic_segmentation', 'model', 'camvid_deeplabv3_mbv3.pth'));
+app.SemModel = uieditfield(row, 'Value', semModelFile('mbv3', app.RootFolder), ...
+    'ValueChangedFcn', @(~, ~) syncSemModelChoice(app));
 uibutton(row, 'Text', 'Cari', 'ButtonPushedFcn', @(~, ~) onBrowseModel(app));
 
 hint(g, ['Inferensi dijalankan di Python (camvid_predict.py), jadi proses pertama ' ...
     'bisa beberapa detik karena memuat model. Citra CamVid test ada di sumber ' ...
     '"CamVid test".']);
+end
+
+function f = semModelFile(key, rootFolder)
+% path file model bawaan untuk pilihan dropdown ('' untuk file lain)
+switch key
+    case 'mbv3', name = 'camvid_deeplabv3_mbv3.pth';
+    case 'r50',  name = 'camvid_deeplabv3_r50.pth';
+    otherwise,   f = ''; return;
+end
+f = fullfile(rootFolder, 'src', 'semantic_segmentation', 'model', name);
 end
 
 % ---------------------------------------------------------------------------
@@ -504,6 +522,28 @@ figure(app.Figure);
 if ~isequal(f, 0)
     app.SemModel.Value = fullfile(p, f);
 end
+syncSemModelChoice(app);
+end
+
+function onSemModelChanged(app)
+% pilihan dropdown mengisi path model; "File lain" langsung membuka dialog file
+key = app.SemModelChoice.Value;
+if strcmp(key, 'custom')
+    onBrowseModel(app);
+else
+    app.SemModel.Value = semModelFile(key, app.RootFolder);
+end
+end
+
+function syncSemModelChoice(app)
+% dropdown mengikuti path: model bawaan dikenali, selain itu "File lain"
+key = 'custom';
+for k = {'mbv3', 'r50'}
+    if strcmpi(strtrim(app.SemModel.Value), semModelFile(k{1}, app.RootFolder))
+        key = k{1};
+    end
+end
+app.SemModelChoice.Value = key;
 end
 
 % ---------------------------------------------------------------------------

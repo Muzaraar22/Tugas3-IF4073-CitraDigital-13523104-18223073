@@ -210,7 +210,12 @@ out.views = makeViews( ...
 out.legend = struct('names', {res.classNames}, 'colors', res.colormap, 'ratio', res.classRatio);
 
 [~, model] = fileparts(p.ModelPath);
-out.methodName = 'Semantic segmentation - DeepLabV3 MobileNetV3 (CamVid, 11 kelas)';
+switch model
+    case 'camvid_deeplabv3_mbv3', arch = 'DeepLabV3 MobileNetV3';
+    case 'camvid_deeplabv3_r50',  arch = 'DeepLabV3 ResNet-50';
+    otherwise,                    arch = 'CNN';
+end
+out.methodName = sprintf('Semantic segmentation - %s (CamVid, 11 kelas)', arch);
 out.paramText  = sprintf('model = %s', model);
 
 % 3 kelas terbanyak

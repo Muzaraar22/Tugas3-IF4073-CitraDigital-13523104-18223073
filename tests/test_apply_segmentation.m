@@ -14,7 +14,11 @@ addpath(genpath(fullfile(rootDir, 'src')));
 
 % python yang terpasang torch & torchvision, contoh Windows:
 %   'C:\Users\nama\AppData\Local\Programs\Python\Python311\python.exe'
-pythonExe = 'python';
+% bisa juga lewat environment variable: setenv('CAMVID_PYTHON', '<path python>')
+pythonExe = getenv('CAMVID_PYTHON');
+if isempty(pythonExe)
+    pythonExe = 'python';
+end
 
 stats = [0 0];   % [jumlah PASS, jumlah FAIL]
 I = imread(fullfile(rootDir, 'data', 'BSDS500', '2018.jpg'));
@@ -125,7 +129,20 @@ else
     out = applySegmentationMethod(I, 'semantic', struct('PythonExe', pythonExe));
     okLegend = numel(out.legend.names) == 11 && abs(sum(out.legend.ratio) - 1) < 1e-9;
     stats = report(numel(out.views) == 4 && isempty(out.views(4).image) && okLegend && ...
-        sameSize(out.views(1:3), sz), 'semantic: 3 view citra + legenda 11 kelas', stats);
+        sameSize(out.views(1:3), sz) && contains(out.methodName, 'MobileNetV3'), ...
+        'semantic MobileNetV3: 3 view citra + legenda 11 kelas', stats);
+
+    % model pembanding ResNet-50 (bobot float16 di file)
+    r50Path = fullfile(rootDir, 'src', 'semantic_segmentation', 'model', 'camvid_deeplabv3_r50.pth');
+    if isfile(r50Path)
+        out = applySegmentationMethod(I, 'semantic', ...
+            struct('PythonExe', pythonExe, 'ModelPath', r50Path));
+        okLegend = numel(out.legend.names) == 11 && abs(sum(out.legend.ratio) - 1) < 1e-9;
+        stats = report(okLegend && sameSize(out.views(1:3), sz) && ...
+            contains(out.methodName, 'ResNet-50'), 'semantic ResNet-50: model pembanding', stats);
+    else
+        fprintf('[SKIP] semantik ResNet-50: model tidak ada\n');
+    end
 end
 
 fprintf('\n==== %d PASS, %d FAIL ====\n', stats(1), stats(2));
